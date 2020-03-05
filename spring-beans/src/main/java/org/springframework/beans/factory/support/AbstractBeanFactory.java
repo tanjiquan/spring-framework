@@ -318,14 +318,20 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 
 				// Create bean instance.
 				if (mbd.isSingleton()) {
+					// 把beanName 和 singletonFactory 并且传入一个回调对象用于回调
+					// 传入一个 ObjectFactory 接口函数，执行完getSingleton() 会回调接口函数中的实现。
+					// 在getSingleton(beanName, ObjectFactory<?> singletonFactory)
+					// 中调用singletonFactory.getObject() 方法时会回调传入的接口实现(createBean(beanName, mbd, args))
 					sharedInstance = getSingleton(beanName, () -> {
 						try {
+							// 进入创建bean 的逻辑
 							return createBean(beanName, mbd, args);
 						}
 						catch (BeansException ex) {
 							// Explicitly remove instance from singleton cache: It might have been put there
 							// eagerly by the creation process, to allow for circular reference resolution.
 							// Also remove any beans that received a temporary reference to the bean.
+							// 创建bean 的过程中发生异常，需要销毁关于当前bean的所有信息
 							destroySingleton(beanName);
 							throw ex;
 						}
@@ -1933,6 +1939,16 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 	 * @param args explicit arguments to use for constructor or factory method invocation
 	 * @return a new instance of the bean
 	 * @throws BeanCreationException if the bean could not be created
+	 */
+	/**
+	 * 改方法定义在 AbstractBeanFactory 中，其含义是根据给定的 BeanDefinition 和 args 实例化一个bean 对象
+	 * 如果该 BeanDefinition 存在父类，则该 BeanDefinition 已经合并了父类的属性
+	 * 所有Bean 实例的创建，都会委托给该方法。
+	 * @param beanName
+	 * @param mbd
+	 * @param args
+	 * @return
+	 * @throws BeanCreationException
 	 */
 	protected abstract Object createBean(String beanName, RootBeanDefinition mbd, @Nullable Object[] args)
 			throws BeanCreationException;
