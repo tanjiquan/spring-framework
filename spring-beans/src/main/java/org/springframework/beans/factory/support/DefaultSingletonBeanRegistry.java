@@ -71,15 +71,16 @@ import org.springframework.util.StringUtils;
 public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements SingletonBeanRegistry {
 
 	/** Cache of singleton objects: bean name to bean instance. */
-	// 一级缓存  这就是我们大名鼎鼎的单例缓存池，用于保存我们所有的单实例bean
+	// 一级缓存  初始化完备的单例bean   这就是我们大名鼎鼎的单例缓存池，用于保存我们所有的单实例bean
 	private final Map<String, Object> singletonObjects = new ConcurrentHashMap<>(256);
 
 	/** Cache of singleton factories: bean name to ObjectFactory. */
-	// 三级缓存  改map用户缓存  key 为 beanName  value 为 ObjectFactory （包装为早期对象）
+	// 三级缓存ObjectFactory工厂bean缓存, 存储实例话后的bean Factory
+	// 该map用户缓存  key 为 beanName  value 为 ObjectFactory （包装为早期对象）
 	private final Map<String, ObjectFactory<?>> singletonFactories = new HashMap<>(16);
 
 	/** Cache of early singleton objects: bean name to bean instance. */
-	// 二级缓存  key 为 beanName  value 为 我们的早期对象（对属性还没来得及进行赋值的对象）
+	// 二级缓存   提前暴光的单例对象的Cache   key 为 beanName  value 为 我们的早期对象（对属性还没来得及进行赋值的对象）
 	private final Map<String, Object> earlySingletonObjects = new HashMap<>(16);
 
 	/** Set of registered singletons, containing the bean names in registration order. */
@@ -181,16 +182,29 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	 * @return the registered singleton object, or {@code null} if none found
 	 */
 	// 单例对象先存在于singletonFactories中，后存在于earlySingletonObjects中，最后初始化完成后放入singletonObjects中
+	// 通过三级缓存解决 属性循环依赖 的问题
+	/**
+	 * doCreateBean 回调用以下方法
+	 * createBeanInstance: 实例化bean, 如果需要依赖其他对象则首先创建其他对象(发生循环依赖的地方)
+	 * addSingletonFactory: 将实例化bean加入三级缓存
+	 * populateBean: 初始化bean, 如果需要依赖其他对象则首先创建其他对象(发生循环依赖的地方)
+	 * initializeBean
+	 * registerDisposableBeanIfNecessary
+	 */
 	@Nullable
 	protected Object getSingleton(String beanName, boolean allowEarlyReference) {
 		/**
 		 * 第一步：尝试去一级缓存（单例缓存池中去获取对象，一般情况下从该map中获取的对象是直接可以使用的）
 		 * IOC容器初始化加载单实例bean 的时候第一次进来的时候，该map 一般为空
+		 * （1）首先从第一层缓存获取
 		 */
 		Object singletonObject = this.singletonObjects.get(beanName);
 		/**
 		 * 若在第一级缓存中m没有获取到对象，并且 singletonsCurrentlyInCreation 这个list 包含该beanName
 		 * IOC容器初始化加载单实例bean的时候第一次进来的时候，该list 一般为空，但是循环依赖的的时候可以满足满足改条件
+		 *
+		 * （2）其次第一层未找到缓存 且 bean处于创建中(例如A定义的构造函数依赖了B对象，得先去创建B对象，
+		 * 		或者在populatebean过程中依赖了B对象，得先去创建B对象，此时A处于创建中)
 		 */
 		if (singletonObject == null && isSingletonCurrentlyInCreation(beanName)) {
 			synchronized (this.singletonObjects) {
@@ -199,10 +213,12 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 				 * 何为早期对象：就是bean刚刚调用了构造方法，还来不及给bean的属性进行赋值的对象 就是早期对象
 				 */
 				singletonObject = this.earlySingletonObjects.get(beanName);
+				// (3) 最后第二层未找到缓存 并 允许循环依赖即从工厂类获取对象
 				if (singletonObject == null && allowEarlyReference) {
 					ObjectFactory<?> singletonFactory = this.singletonFactories.get(beanName);
 					if (singletonFactory != null) {
 						singletonObject = singletonFactory.getObject();
+						// 此时会将三级缓存 移入 二级缓存
 						this.earlySingletonObjects.put(beanName, singletonObject);
 						this.singletonFactories.remove(beanName);
 					}
@@ -221,6 +237,22 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	 * @return the registered singleton object
 	 */
 	//获取一个单例对象
+
+	/**
+	 * 第一个构造函数循环依赖情况, 当createBeanInstance使用构造函数创建circulationA需要依赖circulationB,
+	 *      则会暂时停下来并会创建circulationB 并由于对应未创建并不会加入三级缓存.
+	 *      当使用构造函数创建circulationB需要依赖circulationA,
+	 *      则也会暂时停下来并会创建circulationA 并由于对应未创建并不会加入三级缓存.
+	 *      当创建circulationA会再次调用beforeSingletonCreation进行标记,
+	 *      因为会抛出BeanCurrentlyInCreationException异常终止ioc容器初始化.
+	 *      circulationA和circulationB 由于各自拿不到对应的构造函数参数而无法实例化
+	 * 第二个属性循环依赖情况, circulationB使用setter依赖circulationA,
+	 *     因此createBeanInstance使用默认的空参数构造实例化, 完成之后加入三级缓存并在populateBean中属性进行初始化,
+	 *     此时需要实例化circulationA.  当使用构造函数创建circulationA需要依赖circulationB,
+	 *     则也会暂时停下来并去创建circulationB, 由于在缓存中拿到circulationB即完成circulationA实例化.
+	 *     再次返回circulationB的populateBean方法. 此时circulationA 和 circulationB 加载完成.
+	 *     由此可以类推, 如果只是通过属性 或者 setter方法进行循环依赖 spring可以完美解决.
+	 */
 	public Object getSingleton(String beanName, ObjectFactory<?> singletonFactory) {
 		Assert.notNull(beanName, "Bean name must not be null");
 		synchronized (this.singletonObjects) {

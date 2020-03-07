@@ -626,6 +626,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 						"' to allow for resolving potential circular references");
 			}
 			// 把我们早期对象包装成一个SingletonFactory对象，该对象提供了一个 getObject 方法
+			// 这里 addSingletonFactory 来解决循环依赖
 			addSingletonFactory(beanName, () -> getEarlyBeanReference(beanName, mbd, bean));
 		}
 
@@ -634,7 +635,11 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		try {
 			// 给我们的属性进行赋值（调用set方法进行赋值）
 			populateBean(beanName, mbd, instanceWrapper);
-			// 进行对象初始化操作（在这里可能生成代理对象）
+			// 进行对象初始化操作（
+			// 在这里可能生成代理对象，为什么在这里生成代理对象呢？应为前面只是生成了一个元素的bean，并不知道需不需要代理
+			//   为什么需要代理呢，就是由于加了 @EnableAspectJAutoProxy  并注入了 后置处理器，
+			//   在后置处理器（AbstractAutoProxyCreator.postProcessAfterInitialization 中判断是否需要代理wrapIfNecessary）
+			//   中生成了代理对象并返回）
 			exposedObject = initializeBean(beanName, exposedObject, mbd);
 		}
 		catch (Throwable ex) {
@@ -1228,7 +1233,6 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 			throw new BeanCreationException(mbd.getResourceDescription(), beanName,
 					"Bean class isn't public, and non-public access not allowed: " + beanClass.getName());
 		}
-
 
 		Supplier<?> instanceSupplier = mbd.getInstanceSupplier();
 		if (instanceSupplier != null) {

@@ -595,6 +595,16 @@ public class DispatcherServlet extends FrameworkServlet {
 
 		if (this.detectAllHandlerMappings) {
 			// Find all HandlerMappings in the ApplicationContext, including ancestor contexts.
+			/**
+			 * 从spring容器中找出所有的 HandlerMapping 接口的实现类 的bean
+			 * 由于我们在 WebAppConfig 中配置了 @EnableMvc 导入了DelegatingWebMvcConfiguration，是一个配置类，配置了
+			 * 1）requestMappingHandlerMapping 用于处理我们的 @RequestMapping
+			 * 2) viewControllerHandlerMapping 用于处理我们的view 到页面的转发，不会经过我们的控制器对象
+			 * 3）beanNameHandlerMapping(BeanNameUrlHandlerMapping) 基于beanName 映射请求
+			 * 4）resourceHandlerMapping  资源映射
+			 * 5）defaultServletHandlerMapping  处理静态资源文件
+			 *
+			 */
 			Map<String, HandlerMapping> matchingBeans =
 					BeanFactoryUtils.beansOfTypeIncludingAncestors(context, HandlerMapping.class, true, false);
 			if (!matchingBeans.isEmpty()) {

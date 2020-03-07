@@ -264,7 +264,7 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 		// Suppresses unnecessary default instantiation of the target bean:
 		// The TargetSource will handle target instances in a custom fashion.
 		/**
-		 * 这个地方一般是不会生成代理对象的，除非我们的容器中有TargetSourceCreator 并且我们的bean需要实现
+		 * 这个地方一般是不会生成代理对象的，除非我们的容器中有 TargetSourceCreator 并且我们的bean需要实现
 		 */
 		TargetSource targetSource = getCustomTargetSource(beanClass, beanName);
 		if (targetSource != null) {
@@ -354,7 +354,6 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 		}
 		// 是不是基础的bean（是否实现了Advice、Advisor、AopInfrastructureBean），是不是需要跳过的
 		// AspectJAwareAdvisorAutoProxyCreator.shouldSkip 就是找到候选的通知 也就是找出 @Before @After 的通知
-		//
 		if (isInfrastructureClass(bean.getClass()) || shouldSkip(bean.getClass(), beanName)) {
 			this.advisedBeans.put(cacheKey, Boolean.FALSE);
 			return bean;
@@ -473,7 +472,7 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 		if (this.beanFactory instanceof ConfigurableListableBeanFactory) {
 			AutoProxyUtils.exposeTargetClass((ConfigurableListableBeanFactory) this.beanFactory, beanName, beanClass);
 		}
-		// 创建一个代理对象工厂
+		// 创建一个代理对象工厂  ProxyFactory 来生成对象
 		ProxyFactory proxyFactory = new ProxyFactory();
 		proxyFactory.copyFrom(this);
 		// 为 proxyFactory 设置创建对象 是 jdk代理还是 cglib 代理

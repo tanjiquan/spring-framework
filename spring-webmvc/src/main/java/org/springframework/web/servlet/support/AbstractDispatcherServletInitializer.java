@@ -60,7 +60,16 @@ public abstract class AbstractDispatcherServletInitializer extends AbstractConte
 
 	@Override
 	public void onStartup(ServletContext servletContext) throws ServletException {
+		//1、 实例化我们的spring root 上下文（AnnotationConfigWebApplicationContext），此时创建完的根容器还是空的
+		//2、 创建了 ContextLoaderListener
+		//3、 把跟配置类保存到我们的根容器中
+		//4、 把 ContextLoaderListener 注册到 ServletContext
 		super.onStartup(servletContext);
+		// 父子容器都是 AnnotationConfigWebApplicationContext，
+
+		// 注入我们的 DispatcherServlet 创建我们的spring web 上下文
+		// 1、创建我们的子容器（AnnotationConfigWebApplicationContext），此时创建完后子容器也为空的。
+		// 2、创建我们的 DispatcherServlet
 		registerDispatcherServlet(servletContext);
 	}
 
@@ -76,23 +85,29 @@ public abstract class AbstractDispatcherServletInitializer extends AbstractConte
 	 * @param servletContext the context to register the servlet against
 	 */
 	protected void registerDispatcherServlet(ServletContext servletContext) {
+		// 获取 servletName
 		String servletName = getServletName();
 		Assert.hasLength(servletName, "getServletName() must not return null or empty");
 
+		// 创建 WebApplicationContext 对象
 		WebApplicationContext servletAppContext = createServletApplicationContext();
 		Assert.notNull(servletAppContext, "createServletApplicationContext() must not return null");
 
+		// 创建 DispatcherServlet  所以Tomcat 会对DispatcherServlet 进行生命周期管理
 		FrameworkServlet dispatcherServlet = createDispatcherServlet(servletAppContext);
 		Assert.notNull(dispatcherServlet, "createDispatcherServlet(WebApplicationContext) must not return null");
 		dispatcherServlet.setContextInitializers(getServletApplicationContextInitializers());
 
+		// 注册 dispatcherServlet
 		ServletRegistration.Dynamic registration = servletContext.addServlet(servletName, dispatcherServlet);
 		if (registration == null) {
 			throw new IllegalStateException("Failed to register servlet with name '" + servletName + "'. " +
 					"Check if there is another servlet registered under the same name.");
 		}
 
+		//设置 dispatcherServlet 属性
 		registration.setLoadOnStartup(1);
+		// 设置映射  如 /api/xxx 映射到那个 servlet
 		registration.addMapping(getServletMappings());
 		registration.setAsyncSupported(isAsyncSupported());
 

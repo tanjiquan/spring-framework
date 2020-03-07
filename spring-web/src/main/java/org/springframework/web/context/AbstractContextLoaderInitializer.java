@@ -47,6 +47,7 @@ public abstract class AbstractContextLoaderInitializer implements WebApplication
 
 	@Override
 	public void onStartup(ServletContext servletContext) throws ServletException {
+		// 注册 ContextLoaderListener 在xml 配置的也是 ContextLoaderListener
 		registerContextLoaderListener(servletContext);
 	}
 
@@ -57,10 +58,13 @@ public abstract class AbstractContextLoaderInitializer implements WebApplication
 	 * @param servletContext the servlet context to register the listener against
 	 */
 	protected void registerContextLoaderListener(ServletContext servletContext) {
+		//创建根容器
 		WebApplicationContext rootAppContext = createRootApplicationContext();
 		if (rootAppContext != null) {
+			// 获取到根容器后，创建ContextLoaderListener  监听对象对象，
 			ContextLoaderListener listener = new ContextLoaderListener(rootAppContext);
 			listener.setContextInitializers(getRootApplicationContextInitializers());
+			// 把 listener 加入到 web 上下文
 			servletContext.addListener(listener);
 		}
 		else {
@@ -80,6 +84,7 @@ public abstract class AbstractContextLoaderInitializer implements WebApplication
 	 * desired
 	 * @see org.springframework.web.servlet.support.AbstractDispatcherServletInitializer
 	 */
+	// 子类实现 AbstractAnnotationConfigDispatcherServletInitializer
 	@Nullable
 	protected abstract WebApplicationContext createRootApplicationContext();
 
