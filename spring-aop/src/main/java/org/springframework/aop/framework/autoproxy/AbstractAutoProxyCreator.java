@@ -353,7 +353,8 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 			return bean;
 		}
 		// 是不是基础的bean（是否实现了Advice、Advisor、AopInfrastructureBean），是不是需要跳过的
-		// AspectJAwareAdvisorAutoProxyCreator.shouldSkip
+		// AspectJAwareAdvisorAutoProxyCreator.shouldSkip 就是找到候选的通知 也就是找出 @Before @After 的通知
+		//
 		if (isInfrastructureClass(bean.getClass()) || shouldSkip(bean.getClass(), beanName)) {
 			this.advisedBeans.put(cacheKey, Boolean.FALSE);
 			return bean;
@@ -391,6 +392,12 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 	 * @see #shouldSkip
 	 */
 	protected boolean isInfrastructureClass(Class<?> beanClass) {
+		//判断是不是基础bean
+		/**
+		 * 加入正在创建的bean 是 Advice、Pointcut、Advisor、AopInfrastructureBean
+		 * 直接跳过  不需要解析
+		 * AOP 代理对象中 都未实现
+		 */
 		boolean retVal = Advice.class.isAssignableFrom(beanClass) ||
 				Pointcut.class.isAssignableFrom(beanClass) ||
 				Advisor.class.isAssignableFrom(beanClass) ||

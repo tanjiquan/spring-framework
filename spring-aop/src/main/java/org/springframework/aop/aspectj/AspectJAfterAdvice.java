@@ -44,9 +44,11 @@ public class AspectJAfterAdvice extends AbstractAspectJAdvice
 	@Override
 	public Object invoke(MethodInvocation mi) throws Throwable {
 		try {
+			// 本拦截器是后置通知拦截器对象  执行下一个通知
 			return mi.proceed();
 		}
 		finally {
+			// 后置通知的方法总是会执行，因为是finally 包装的。 这也是为什么方法抛不抛方法，总是会被执行
 			invokeAdviceMethod(getJoinPointMatch(), null, null);
 		}
 	}

@@ -157,12 +157,48 @@ public class ReflectiveMethodInvocation implements ProxyMethodInvocation, Clonea
 
 	@Override
 	@Nullable
+	// 这个方法整合核心就是 责任链模式  + 递归
+	// 通过5节点方法 链条中，通过责任链 + 递归模式，驱动执行。第0个驱动第一个，第一个驱动第二个...
+	//    执行到最后一个节点的时候进行判断(4 == 5-1)，这个时候需要执行目标方法了，目标方法执行完了再往上一层返回，执行相关代码。
+	//  这就是一个织入的操作
+
+	//可以把这种精髓搬到业务代码中  依赖查找、递归、责任链模式、模板模式
+	// 业务校验： 有很多个 if  else  不符合开闭原则
+	// 改善： 1、定义校验规则接口、抽象校验类实现校验规则接口
+	//       2、校验参数合法性、校验业务互斥....  把这些校验规则区分出一个一个校验规则类，并继承抽象校验类，然后交给抽象方法处理
+	//       3、在引入一个驱动规则类，驱动一个一个校验规则执行
+	//       4、使用，有可能A业务需要2个校验规则类、B业务需要3个校验规则类，通过一个注解依赖查找A 业务用了哪些规则。这样很灵活增删规则
+	// 这就是  模式
+
+	// 假如有： 前置、后置、返回、异常  都有这四个通知
+	// 进链顺序：异常、返回、后置、前置(前置通知这里已经知道他的下一个链没有了，所以会调用目标方法，所以执行完后会进入到invokeJoinpoint()方法)、目标方法
+	// 出链顺序：目标方法、前置、后置（后置通知对mi.proceed()进行了try finally 所以一定会执行。）、
+	//   返回(返回通知不会执行，因为后置通知出来后抛出了异常，但是AfterReturningAdviceInterceptor.process()中并没有try catch)、
+	//   异常(异常通知在执行方法是出现异常会执行，进行了 try  catch)
+	// 前置通知 执行完就会调目标方法
+	// 目标方法返回后就会掉后置通知、目标方法执行异常就会掉异常通知
+	//
 	public Object proceed() throws Throwable {
 		// We start with an index of -1 and increment early.
+		// 从-1 开始，结束条件执行目标方法是下标 =  拦截器的长度 - 1 （执行到了最后一个拦截器的时候）
+		// 比如有5个通知， 第一次进来  -1  != 5 - 1   不进入，currentInterceptorIndex 递归调用时下面会被累加
+		// 第二个通知（AspectJAfterThrowingAdvice）进来，还是不为空  0  !=  5 - 1
+		// 第三个通知（AfterReturningAdviceInterceptor）进来，还是不为空  1 != 5 - 1
+		// 第四个通知（AspectJAfterAdvice）进来，还是不为空  2 != 5 - 1
+		// 第五个通知 (MethodBeforeAdviceInterceptor) 进来，不为空，3 != 5 - 1
+		// 第五个通知(MethodBeforeAdviceInterceptor) 执行before 回来后，此时  4 == 5 - 1 进入此判断
 		if (this.currentInterceptorIndex == this.interceptorsAndDynamicMethodMatchers.size() - 1) {
+			// 执行到最后一个通知方法的时候调用目标方法。(第五个拦截链执行
+			// ((MethodInterceptor) interceptorOrInterceptionAdvice).invoke(this); 以后会回来)
+			// 这里是调用目标方法
 			return invokeJoinpoint();
 		}
 
+		// 获取第一个通知（ExposeInvocationInterceptor, 默认的一个），使用的是前++ ，第一次进来  -1 + 1 = 0，即就是第一个链条（通知）
+		// 获取第二个通知(AspectJAfterThrowingAdvice)  0 + 1 = 1 即第二个通知
+		// 获取第三个通知(AfterReturningAdviceInterceptor)  1 + 1 = 2 即第三个通知
+		// 获取第四个通知(AspectJAfterAdvice)   2 + 1 = 3 即第四个通知
+		// 获取第五个通知(MethodBeforeAdviceInterceptor)  3 + 1 = 4 即第五个通知
 		Object interceptorOrInterceptionAdvice =
 				this.interceptorsAndDynamicMethodMatchers.get(++this.currentInterceptorIndex);
 		if (interceptorOrInterceptionAdvice instanceof InterceptorAndDynamicMethodMatcher) {
@@ -183,6 +219,13 @@ public class ReflectiveMethodInvocation implements ProxyMethodInvocation, Clonea
 		else {
 			// It's an interceptor, so we just invoke it: The pointcut will have
 			// been evaluated statically before this object was constructed.
+			// 在这个地方注意，
+			// 第一个通知 第一个拦截器的方法的 invoke 方法，  传入的是this，当前的方法拦截器对象
+			//           this  当前对象， 第一个为 ExposeInvocationInterceptor
+			// 第二个通知是 AspectJAfterThrowingAdvice，第二次传入的还是 ExposeInvocationInterceptor
+			// 第三个通知是 AfterReturningAdviceInterceptor  先执行异常通知，在执行返回通知，
+			// 第四个通知是 AspectJAfterAdvice
+			// 第五个通知是 MethodBeforeAdviceInterceptor
 			return ((MethodInterceptor) interceptorOrInterceptionAdvice).invoke(this);
 		}
 	}

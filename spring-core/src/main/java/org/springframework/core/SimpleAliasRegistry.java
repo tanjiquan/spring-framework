@@ -210,6 +210,9 @@ public class SimpleAliasRegistry implements AliasRegistry {
 		String canonicalName = name;
 		// Handle aliasing...
 		String resolvedName;
+		/**
+		 * 用while 循环主要是，可能存在多重别名的问题，找到最终的beanName
+		 */
 		do {
 			resolvedName = this.aliasMap.get(canonicalName);
 			if (resolvedName != null) {

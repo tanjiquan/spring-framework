@@ -71,12 +71,15 @@ import org.springframework.util.StringUtils;
 public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements SingletonBeanRegistry {
 
 	/** Cache of singleton objects: bean name to bean instance. */
+	// 一级缓存  这就是我们大名鼎鼎的单例缓存池，用于保存我们所有的单实例bean
 	private final Map<String, Object> singletonObjects = new ConcurrentHashMap<>(256);
 
 	/** Cache of singleton factories: bean name to ObjectFactory. */
+	// 三级缓存  改map用户缓存  key 为 beanName  value 为 ObjectFactory （包装为早期对象）
 	private final Map<String, ObjectFactory<?>> singletonFactories = new HashMap<>(16);
 
 	/** Cache of early singleton objects: bean name to bean instance. */
+	// 二级缓存  key 为 beanName  value 为 我们的早期对象（对属性还没来得及进行赋值的对象）
 	private final Map<String, Object> earlySingletonObjects = new HashMap<>(16);
 
 	/** Set of registered singletons, containing the bean names in registration order. */
@@ -132,9 +135,13 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	 */
 	protected void addSingleton(String beanName, Object singletonObject) {
 		synchronized (this.singletonObjects) {
+			// 加入到单例缓冲池（一级缓存池）
 			this.singletonObjects.put(beanName, singletonObject);
+			// 从三级缓存池中移除（针对的不是循环依赖的）
 			this.singletonFactories.remove(beanName);
+			// 从二级缓存池中移除 （循环依赖的时候，早期对象存在于二级缓存池中）
 			this.earlySingletonObjects.remove(beanName);
+			// 用于记录保存已经记录的bean
 			this.registeredSingletons.add(beanName);
 		}
 	}
@@ -161,6 +168,7 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	@Override
 	@Nullable
 	public Object getSingleton(String beanName) {
+		// 在这里，系统一般运行早期对象引用的 allowEarlyReference 通过这个参数可以控制解决循环依赖的问题
 		return getSingleton(beanName, true);
 	}
 
@@ -172,11 +180,24 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	 * @param allowEarlyReference whether early references should be created or not
 	 * @return the registered singleton object, or {@code null} if none found
 	 */
+	// 单例对象先存在于singletonFactories中，后存在于earlySingletonObjects中，最后初始化完成后放入singletonObjects中
 	@Nullable
 	protected Object getSingleton(String beanName, boolean allowEarlyReference) {
+		/**
+		 * 第一步：尝试去一级缓存（单例缓存池中去获取对象，一般情况下从该map中获取的对象是直接可以使用的）
+		 * IOC容器初始化加载单实例bean 的时候第一次进来的时候，该map 一般为空
+		 */
 		Object singletonObject = this.singletonObjects.get(beanName);
+		/**
+		 * 若在第一级缓存中m没有获取到对象，并且 singletonsCurrentlyInCreation 这个list 包含该beanName
+		 * IOC容器初始化加载单实例bean的时候第一次进来的时候，该list 一般为空，但是循环依赖的的时候可以满足满足改条件
+		 */
 		if (singletonObject == null && isSingletonCurrentlyInCreation(beanName)) {
 			synchronized (this.singletonObjects) {
+				/**
+				 * 尝试去第二级缓存中获取对象（二级缓存中的对象是一个早期对象）
+				 * 何为早期对象：就是bean刚刚调用了构造方法，还来不及给bean的属性进行赋值的对象 就是早期对象
+				 */
 				singletonObject = this.earlySingletonObjects.get(beanName);
 				if (singletonObject == null && allowEarlyReference) {
 					ObjectFactory<?> singletonFactory = this.singletonFactories.get(beanName);
@@ -199,10 +220,13 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	 * with, if necessary
 	 * @return the registered singleton object
 	 */
+	//获取一个单例对象
 	public Object getSingleton(String beanName, ObjectFactory<?> singletonFactory) {
 		Assert.notNull(beanName, "Bean name must not be null");
 		synchronized (this.singletonObjects) {
+			//获取单例的bean
 			Object singletonObject = this.singletonObjects.get(beanName);
+			//如果获取失败，就开始调用beforeSingletonCreation(beanName);开始创建。
 			if (singletonObject == null) {
 				if (this.singletonsCurrentlyInDestruction) {
 					throw new BeanCreationNotAllowedException(beanName,
@@ -212,6 +236,8 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 				if (logger.isDebugEnabled()) {
 					logger.debug("Creating shared instance of singleton bean '" + beanName + "'");
 				}
+				// 标记当前的bean马上就要被创建了，第一次单例的对象进来后，会把 beanName 放入 singletonsCurrentlyInCreation
+				// singletonsCurrentlyInCreation 在这里会把 beanName 加进去，若第二次循环依赖 构造器注入会抛出异常
 				beforeSingletonCreation(beanName);
 				boolean newSingleton = false;
 				boolean recordSuppressedExceptions = (this.suppressedExceptions == null);
@@ -219,12 +245,15 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 					this.suppressedExceptions = new LinkedHashSet<>();
 				}
 				try {
+					// 《3》初始化bean
+					//  这个过程其实就是调用 createBean()  singletonFactory 是一个函数式接口，会执行回调函数
 					singletonObject = singletonFactory.getObject();
 					newSingleton = true;
 				}
 				catch (IllegalStateException ex) {
 					// Has the singleton object implicitly appeared in the meantime ->
 					// if yes, proceed with it since the exception indicates that state.
+					// 回调我们 singletonObjects 的get 方法，进行正在创建bean的逻辑
 					singletonObject = this.singletonObjects.get(beanName);
 					if (singletonObject == null) {
 						throw ex;
@@ -242,9 +271,11 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 					if (recordSuppressedExceptions) {
 						this.suppressedExceptions = null;
 					}
+					// 《4》把 singletonsCurrentlyInCreation 标记正在创建的bean 从集合中移除
 					afterSingletonCreation(beanName);
 				}
 				if (newSingleton) {
+					//《5》 加入缓存
 					addSingleton(beanName, singletonObject);
 				}
 			}
@@ -335,6 +366,49 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	 * @see #isSingletonCurrentlyInCreation
 	 */
 	protected void beforeSingletonCreation(String beanName) {
+		/**
+		 * Spring解决的循环依赖就是指属性的循环依赖：见下
+		 * @Bean
+		 * @DependsOn(value = "b")
+		 * public A a() {
+		 *     reture new A();
+		 * }
+		 *
+		 * @Bean
+		 * @DependsOn(value = "a")
+		 * public B b() {
+		 *     return new B();
+		 * }
+		 * 处理dependsOn 依赖(这个不是我们所说的循环依赖， 而是bean 创建前后的依赖)
+		 *
+		 *  构造器的循环依赖就是在构造器中有属性循环依赖，见下：
+		 * @Service
+		 * public class Student {
+		 *     @Autowired
+		 *     private Teacher teacher;
+		 *
+		 *     public Student (Teacher teacher) {
+		 *         System.out.println("Student init1:" + teacher);
+		 *     }
+		 * }
+		 *
+		 * @Service
+		 *  public class Teacher {
+		 *      @Autowired
+		 *      private Student student;
+		 *
+		 *      public Teacher (Student student) {
+		 *          System.out.println("Teacher init1:" + student);
+		 *
+		 *      }
+		 * }
+		 * 构造器的循环依赖无法解决。Student 依赖于 Teacher，Teacher 依赖于Student
+		 */
+		// 第一次单例bean 初始化时，会进到此处，将 beanName 放入到 singletonsCurrentlyInCreation
+		// Student 在最开始创建的时候已经被写入到this.singletonsCurrentlyInCreation中了，
+		// 在初试话 Teacher 时，依赖 Student 此时Student 还未初始化，又去set 中add， 这个beanName被写入到set中了。
+		// 返回false。通过一个Set来记录下创建当前bean中依赖的bean。
+		// 如果发现自己依赖自己就是一个循环依赖。
 		if (!this.inCreationCheckExclusions.contains(beanName) && !this.singletonsCurrentlyInCreation.add(beanName)) {
 			throw new BeanCurrentlyInCreationException(beanName);
 		}

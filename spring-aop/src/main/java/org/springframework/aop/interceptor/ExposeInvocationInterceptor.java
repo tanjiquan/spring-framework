@@ -87,11 +87,15 @@ public final class ExposeInvocationInterceptor implements MethodInterceptor, Pri
 	private ExposeInvocationInterceptor() {
 	}
 
+	// ExposeInvocationInterceptor 这一个拦截器是系统默认的一个，
+	// 用于记录执行的拦截器是什么：ReflectiveMethodInvocation  or  CglibAopProxy
 	@Override
 	public Object invoke(MethodInvocation mi) throws Throwable {
 		MethodInvocation oldInvocation = invocation.get();
+		// 记录当前正在执行的拦截器， 第一次 传入的就是 ReflectiveMethodInvocation
 		invocation.set(mi);
 		try {
+			// 第一次传入的是 ReflectiveMethodInvocation，又会回到 ReflectiveMethodInvocation 的 invoke 方法。
 			return mi.proceed();
 		}
 		finally {

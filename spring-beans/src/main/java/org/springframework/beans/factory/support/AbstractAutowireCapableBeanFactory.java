@@ -436,7 +436,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 			 * 都是实现了我们的 BeanPostProcessor 接口，InstantiationAwareBeanPostProcessor
 			 * AOP 在这里实现的是 BeanPostProcessor 接口的postProcessAfterInitialization 来生成代理对象。
 			 * （EnableAspectJAutoProxy 注解上 import 了一个 AspectJAutoProxyRegistrar（这个类会往IOC容器中注入一个
-			 * AnnotationAwareAspectJAutoProxyCreator（自动代理创建起））））
+			 * 		AnnotationAwareAspectJAutoProxyCreator（自动代理创建起）））） 其父类AbstractAutoProxyCreator
 			 */
 			Object current = processor.postProcessAfterInitialization(result, beanName);
 			// 若只有一个返回null, 那么直接返回原始的
@@ -532,6 +532,8 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 			 * 因为我们的真实bean 还没生成，所以在这里不会生成代理对象，那么在这里是我们aop 和事务的关键，
 			 * 因为在这里解析我们的aop切面信息进行缓存。
 			 * AOP 解析切面类，会根据不切面类中 before、after 生成对应的通知 AspectJBeforeAdvisor AspectJAfterAdvisor
+			 *
+			 * 第一次创建bean 返回null
 			 */
 			Object bean = resolveBeforeInstantiation(beanName, mbdToUse);
 			if (bean != null) {
@@ -586,11 +588,13 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 			// 从没有完成的FactoryBean 中移除
 			instanceWrapper = this.factoryBeanInstanceCache.remove(beanName);
 		}
+
 		if (instanceWrapper == null) {
-			//使用合适的实例化策略来创建新的实例：工厂方法、构造函数注入、简单初始化 改方法很复杂很重要
+			//使用合适的实例化策略来创建新的实例：工厂方法、构造函数自动注入、简单初始化 该方法很复杂很重要
+			// 会进行推断，到底使用哪种方式实例化对象
 			instanceWrapper = createBeanInstance(beanName, mbd, args);
 		}
-		// 从 beanWrapper 中获取我们的早起对象
+		// 从 beanWrapper 中获取我们的早期对象
 		final Object bean = instanceWrapper.getWrappedInstance();
 		Class<?> beanType = instanceWrapper.getWrappedClass();
 		if (beanType != NullBean.class) {
@@ -621,6 +625,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 				logger.trace("Eagerly caching bean '" + beanName +
 						"' to allow for resolving potential circular references");
 			}
+			// 把我们早期对象包装成一个SingletonFactory对象，该对象提供了一个 getObject 方法
 			addSingletonFactory(beanName, () -> getEarlyBeanReference(beanName, mbd, bean));
 		}
 
@@ -1168,6 +1173,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 						// InstantiationAwareBeanPostProcessors 后置处理器 applyBeanPostProcessorsAfterInitialization
 						// 会调用 postProcessAfterInitialization
 						bean = applyBeanPostProcessorsAfterInitialization(bean, beanName);
+						// AOP的切面信息就是在后置处理器中解析出来的
 					}
 				}
 			}
@@ -1215,56 +1221,87 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	 */
 	protected BeanWrapper createBeanInstance(String beanName, RootBeanDefinition mbd, @Nullable Object[] args) {
 		// Make sure bean class is actually resolved at this point.
+		// 从bean 中解析bean 的class对象
 		Class<?> beanClass = resolveBeanClass(mbd, beanName);
-
+		//检测类的权限，非public 是不能访问，抛出异常
 		if (beanClass != null && !Modifier.isPublic(beanClass.getModifiers()) && !mbd.isNonPublicAccessAllowed()) {
 			throw new BeanCreationException(mbd.getResourceDescription(), beanName,
 					"Bean class isn't public, and non-public access not allowed: " + beanClass.getName());
 		}
+
 
 		Supplier<?> instanceSupplier = mbd.getInstanceSupplier();
 		if (instanceSupplier != null) {
 			return obtainFromSupplier(instanceSupplier, beanName);
 		}
 
+		/**
+		 * 工厂方法，如果用配置类进行配置的话，采用的就是工厂方法，方法名称就是 a()，就是我们的工厂方法名称。
+		 *
+		 * @Bean
+		 * public A a() {
+		 *     return new A();
+		 * }
+		 */
 		if (mbd.getFactoryMethodName() != null) {
 			return instantiateUsingFactoryMethod(beanName, mbd, args);
 		}
 
+		/**
+		 * 当多次构造同一个bean时，可以使用此处的快捷路径，即无需再次推断应该使用哪种方式构造实例，以提高效率
+		 * 比如多次构建同一个 prototype 类型的bean时，可以走此捷径
+		 * resolved 和 constructorArgumentsResolved 将会在第一次实例化的过程中被设置，
+		 */
 		// Shortcut when re-creating the same bean...
+		// 判断构造韩式是否被解析过
 		boolean resolved = false;
 		boolean autowireNecessary = false;
 		if (args == null) {
 			synchronized (mbd.constructorArgumentLock) {
+				// 判断 bean 定义中 resolvedConstructorOrFactoryMethod
 				if (mbd.resolvedConstructorOrFactoryMethod != null) {
+					//修改已经解析过的构造函数标志
 					resolved = true;
+					//标识构造方法或者工厂函数已经解析过
 					autowireNecessary = mbd.constructorArgumentsResolved;
 				}
 			}
 		}
+		//被解析过
 		if (resolved) {
 			if (autowireNecessary) {
+				// 有参构造函数实例化
 				return autowireConstructor(beanName, mbd, null, null);
 			}
 			else {
+				// 无参构造函数实例化
 				return instantiateBean(beanName, mbd);
 			}
 		}
 
 		// Candidate constructors for autowiring?
+		// 通过bean的后置处理器，进行选举出合适的构造函数对象，
 		Constructor<?>[] ctors = determineConstructorsFromBeanPostProcessors(beanClass, beanName);
+		/**
+		 * 通过后置处理器解析出构造函数对象不为 null
+		 * 获取bean定义中的注入模式是构造器注入
+		 * bean 定义信息ConstructorArgumentValues
+		 * 获取通过getBean 的方式传入构造器函数参数类型不为 null
+		 */
 		if (ctors != null || mbd.getResolvedAutowireMode() == AUTOWIRE_CONSTRUCTOR ||
 				mbd.hasConstructorArgumentValues() || !ObjectUtils.isEmpty(args)) {
 			return autowireConstructor(beanName, mbd, ctors, args);
 		}
 
 		// Preferred constructors for default construction?
+		// 构造器注入
 		ctors = mbd.getPreferredConstructors();
 		if (ctors != null) {
 			return autowireConstructor(beanName, mbd, ctors, null);
 		}
 
 		// No special handling: simply use no-arg constructor.
+		//
 		return instantiateBean(beanName, mbd);
 	}
 

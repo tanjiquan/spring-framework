@@ -52,7 +52,9 @@ public class MethodBeforeAdviceInterceptor implements MethodInterceptor, BeforeA
 
 	@Override
 	public Object invoke(MethodInvocation mi) throws Throwable {
+		// 本拦截器是前置通知，先执行前置通知的方法。
 		this.advice.before(mi.getMethod(), mi.getArguments(), mi.getThis());
+		// 执行下一个拦截器(通知)  但是拦截器是最后一个那么他就调用目标方法
 		return mi.proceed();
 	}
 
