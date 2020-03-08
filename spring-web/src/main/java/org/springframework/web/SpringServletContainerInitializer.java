@@ -184,13 +184,22 @@ public class SpringServletContainerInitializer implements ServletContainerInitia
 			servletContext.log("No Spring WebApplicationInitializer types detected on classpath");
 			return;
 		}
-		//initializers 不为空，对WebApplicationInitializer 排序（标注了 @Order注解）
+		//initializers 不为空，对WebApplicationInitializer 排序（标注了 @Order注解） 序号越小越先执行
 		servletContext.log(initializers.size() + " Spring WebApplicationInitializers detected on classpath");
 		AnnotationAwareOrderComparator.sort(initializers);
 		// 根据排序顺序，调用 每个 WebApplicationInitializer 的onStartup 方法。
+		// 上面已经将所有的 WebApplicationInitializer 实现类通过反射实例化，在这里会启动我们调用onStartup，
+		// 启动spring root IOC 容器，Spring MVC 子容器。
+		// 在WebApplicationInitializer 实现逻辑里面会把 filter、servlet、listener注册，就是把 Tomcat 的web.xml 已经代替
 		for (WebApplicationInitializer initializer : initializers) {
 			initializer.onStartup(servletContext);
 		}
+		// 通过SPI 完成 之前 Tomcat 的web.xml 需要的配置后
+		// Tomcat 如何启动，Tomcat 怎么内嵌到spring 中呢？
+		/**
+		 * 在pom.xml 中，我们会导入内嵌的Tomcat   tomcat-embed-xxx。在spring-boot 就是通过这样实现的
+		 *
+		 */
 	}
 
 }
