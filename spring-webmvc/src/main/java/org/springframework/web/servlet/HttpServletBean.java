@@ -146,6 +146,12 @@ public abstract class HttpServletBean extends HttpServlet implements Environment
 	 * properties are missing), or if subclass initialization fails.
 	 */
 	// 重写了 HttpServlet 的init 方法。
+	//Tomcat启动后：用户首次向某个Servlet对象发送请求，Tomcat会判断内存中是否存在指定的servlet对象
+	// ，如果没有则会取创建它，然后创建HttpRequest,HttpResponse对象，调用service方法处理用户的请求。
+	//   init方法 并非在Tomcat 已启动就调用
+
+	//　　init方法是在实例化Servlet之后调用的，其参数ServletConfig是在Servlet初始化阶段Tomcat根据web.xml配置信息，
+	// 	  和操作系统的相关环境生成并传递给init方法的。
 	@Override
 	public final void init() throws ServletException {
 

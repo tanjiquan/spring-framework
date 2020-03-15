@@ -240,6 +240,11 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 		return wrapIfNecessary(bean, beanName, cacheKey);
 	}
 
+	/**
+	 * 实例化之前做的事情，这个方法是从 createBean 的 AbstractAutowireCapableBeanFactory#resolveBeforeInstantiation 为入口
+	 *
+	 * 所以到这个类
+	 */
 	@Override
 	public Object postProcessBeforeInstantiation(Class<?> beanClass, String beanName) {
 		// 构造缓存key
@@ -251,7 +256,7 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 				return null;
 			}
 			/**
-			 * 判断是不是基础的bean
+			 * 判断是不是基础的bean，基础的类型
 			 * 判断是不是应该被跳过，（aop 解析直接解析出我们的切面信息（并且把我们的切面信息进行保存），而事务在这里是不会解析的）
 			 */
 			if (isInfrastructureClass(beanClass) || shouldSkip(beanClass, beanName)) {
@@ -271,6 +276,7 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 			if (StringUtils.hasLength(beanName)) {
 				this.targetSourcedBeans.add(beanName);
 			}
+			//
 			Object[] specificInterceptors = getAdvicesAndAdvisorsForBean(beanClass, beanName, targetSource);
 			Object proxy = createProxy(beanClass, beanName, specificInterceptors, targetSource);
 			this.proxyTypes.put(cacheKey, proxy.getClass());
@@ -296,6 +302,7 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 	}
 
 	/**
+	 * 初始化之后做的事情。
 	 * 在该后置方法中，我们的事务和aop 的代理对象都是在这里生成的
 	 * Create a proxy with the configured interceptors if the bean is
 	 * identified as one to proxy by the subclass.

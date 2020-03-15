@@ -35,9 +35,13 @@ import org.springframework.transaction.interceptor.TransactionInterceptor;
  * @see EnableTransactionManagement
  * @see TransactionManagementConfigurationSelector
  */
+/**
+ * 配置事务相关的bean
+ */
 @Configuration(proxyBeanMethods = false)
 @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
 public class ProxyTransactionManagementConfiguration extends AbstractTransactionManagementConfiguration {
+
 
 	@Bean(name = TransactionManagementConfigUtils.TRANSACTION_ADVISOR_BEAN_NAME)
 	@Role(BeanDefinition.ROLE_INFRASTRUCTURE)

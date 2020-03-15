@@ -500,16 +500,71 @@ public class DispatcherServlet extends FrameworkServlet {
 	 * <p>May be overridden in subclasses in order to initialize further strategy objects.
 	 */
 	protected void initStrategies(ApplicationContext context) {
+		//文件上传解析，如果请求类型是multipart将通过MultipartResolver进行文件上传解析；
 		initMultipartResolver(context);
+		//本地化解析，因为Spring支持国际化，因此LocalResover解析客户端的Locale信息从而方便进行国际化；
 		initLocaleResolver(context);
+		//主题解析，通过它来实现一个页面多套风格，即常见的类似于软件皮肤效果；
 		initThemeResolver(context);
+		//通过HandlerMapping，将请求映射到处理器
+		// （返回一个HandlerExecutionChain，它包括一个处理器、多个HandlerInterceptor拦截器）；
+		/**
+		 * HandlerMapping：请求到处理器的映射，如果映射成功返回一个HandlerExecutionChain对象
+		 *   （包含一个Handler处理器（页面控制器）对象、多个HandlerInterceptor拦截器）对象；
+		 * 	 如BeanNameUrlHandlerMapping将URL与Bean名字映射，映射成功的Bean就是此处的处理器；
+		 */
 		initHandlerMappings(context);
+		//通过HandlerAdapter支持多种类型的处理器(HandlerExecutionChain中的处理器)；
+		/**
+		 * HandlerAdapter将会把处理器包装为适配器，从而支持多种类型的处理器，即适配器设计模式的应用，从而很容易支持很多类型的处理器；
+		 * 	如SimpleControllerHandlerAdapter将对实现了Controller接口的Bean进行适配，并且掉处理器的handleRequest方法进行功能处理；
+		 */
 		initHandlerAdapters(context);
+		// 如果执行过程中遇到异常将交给HandlerExceptionResolver来解析。
+		// 处理器异常解析，可以将异常映射到相应的统一错误界面，从而显示用户友好的界面（而不是给用户看到具体的错误信息）；
 		initHandlerExceptionResolvers(context);
+		//当处理器没有返回逻辑视图名等相关信息时，自动将请求URL映射为逻辑视图名；
 		initRequestToViewNameTranslator(context);
+		//通过ViewResolver解析逻辑视图名到具体视图实现；
+		/**
+		 * ViewResolver将把逻辑视图名解析为具体的View，通过这种策略模式，很容易更换其他视图技术；
+		 * 	如InternalResourceViewResolver将逻辑视图名映射为jsp视图；
+		 */
 		initViewResolvers(context);
+		/**
+		 * 用于管理FlashMap的策略接口，FlashMap用于存储一个请求的输出，
+		 * 	  当进入另一个请求时作为该请求的输入，通常用于重定向场景，后边会细述。
+		 */
 		initFlashMapManager(context);
 	}
+	/**
+	 * DispatcherServlet默认使用WebApplicationContext作为上下文，因此我们来看一下该上下文中有哪些特殊的Bean：
+	 *
+	 * 1、Controller：处理器/页面控制器，做的是MVC中的C的事情，但控制逻辑转移到前端控制器了，用于对请求进行处理；
+	 *
+	 * 2、HandlerMapping：请求到处理器的映射，如果映射成功返回一个HandlerExecutionChain对象
+	 *  （包含一个Handler处理器（页面控制器）对象、多个HandlerInterceptor拦截器）对象；
+	 *   如BeanNameUrlHandlerMapping将URL与Bean名字映射，映射成功的Bean就是此处的处理器；
+	 *
+	 * 3、HandlerAdapter：HandlerAdapter将会把处理器包装为适配器，从而支持多种类型的处理器，即适配器设计模式的应用，从而很容易支持很多类型的处理器；
+	 *  如SimpleControllerHandlerAdapter将对实现了Controller接口的Bean进行适配，并且掉处理器的handleRequest方法进行功能处理；
+	 *
+	 * 4、ViewResolver：ViewResolver将把逻辑视图名解析为具体的View，通过这种策略模式，很容易更换其他视图技术；
+	 *  如InternalResourceViewResolver将逻辑视图名映射为jsp视图；
+	 *
+	 * 5、LocalResover：本地化解析，因为Spring支持国际化，因此LocalResover解析客户端的Locale信息从而方便进行国际化；
+	 *
+	 * 6、ThemeResovler：主题解析，通过它来实现一个页面多套风格，即常见的类似于软件皮肤效果；
+	 *
+	 * 7、MultipartResolver：文件上传解析，用于支持文件上传；
+	 *
+	 * 8、HandlerExceptionResolver：处理器异常解析，可以将异常映射到相应的统一错误界面，从而显示用户友好的界面（而不是给用户看到具体的错误信息）；
+	 *
+	 * 9、RequestToViewNameTranslator：当处理器没有返回逻辑视图名等相关信息时，自动将请求URL映射为逻辑视图名；
+	 *
+	 * 10、FlashMapManager：用于管理FlashMap的策略接口，FlashMap用于存储一个请求的输出，
+	 *    当进入另一个请求时作为该请求的输入，通常用于重定向场景，后边会细述。
+	 */
 
 	/**
 	 * Initialize the MultipartResolver used by this class.
@@ -603,8 +658,9 @@ public class DispatcherServlet extends FrameworkServlet {
 			 * 3）beanNameHandlerMapping(BeanNameUrlHandlerMapping) 基于beanName 映射请求
 			 * 4）resourceHandlerMapping  资源映射
 			 * 5）defaultServletHandlerMapping  处理静态资源文件
-			 *
 			 */
+			//// 返回指定类型和子类型的所有bean，若该bean factory 是一个继承类型的beanFactory，
+			//    这个方法也会获取祖宗factory中定义的指定类型的bean。
 			Map<String, HandlerMapping> matchingBeans =
 					BeanFactoryUtils.beansOfTypeIncludingAncestors(context, HandlerMapping.class, true, false);
 			if (!matchingBeans.isEmpty()) {
@@ -915,6 +971,7 @@ public class DispatcherServlet extends FrameworkServlet {
 	/**
 	 * Exposes the DispatcherServlet-specific request attributes and delegates to {@link #doDispatch}
 	 * for the actual dispatching.
+	 * 一个请求到达后，后经过servlet, 最终 web 请求都会经过此处，
 	 */
 	@Override
 	protected void doService(HttpServletRequest request, HttpServletResponse response) throws Exception {
@@ -1007,6 +1064,14 @@ public class DispatcherServlet extends FrameworkServlet {
 	 * @param response current HTTP response
 	 * @throws Exception in case of any kind of processing failure
 	 */
+	/**
+	 *  doDispatch() 方法进行请求分发处理，doDispatch() 方法的主要过程是
+	 *  1、通过 HandlerMapping 获取 Handler，
+	 *  2、再找到用于执行它的 HandlerAdapter，
+	 *  3、执行 Handler 后得到 ModelAndView ，ModelAndView 是连接“业务逻辑层”与“视图展示层”的桥梁，
+	 *  4、接下来就要通过 ModelAndView 获得 View，
+	 *  4、再通过它的 Model 对 View 进行渲染。
+	 */
 	protected void doDispatch(HttpServletRequest request, HttpServletResponse response) throws Exception {
 		HttpServletRequest processedRequest = request;
 		HandlerExecutionChain mappedHandler = null;
@@ -1023,6 +1088,7 @@ public class DispatcherServlet extends FrameworkServlet {
 				multipartRequestParsed = (processedRequest != request);
 
 				// Determine handler for the current request.
+				//// 遍历所有的 HandlerMapping 找到与请求对应的 Handler，并将其与一堆拦截器封装到 HandlerExecution 对象中。
 				mappedHandler = getHandler(processedRequest);
 				if (mappedHandler == null) {
 					noHandlerFound(processedRequest, response);

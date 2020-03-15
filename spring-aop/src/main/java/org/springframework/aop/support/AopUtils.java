@@ -243,7 +243,7 @@ public abstract class AopUtils {
 			classes.add(ClassUtils.getUserClass(targetClass));
 		}
 		classes.addAll(ClassUtils.getAllInterfacesForClassAsSet(targetClass));
-
+		// 获取接口里面的所有方法，判断是否，目标类和方法
 		for (Class<?> clazz : classes) {
 			Method[] methods = ReflectionUtils.getAllDeclaredMethods(clazz);
 			for (Method method : methods) {
@@ -318,6 +318,7 @@ public abstract class AopUtils {
 				// already processed
 				continue;
 			}
+			// 判断通知是不是可用，获取事务类中的所有方法，看是否标注了
 			if (canApply(candidate, clazz, hasIntroductions)) {
 				eligibleAdvisors.add(candidate);
 			}

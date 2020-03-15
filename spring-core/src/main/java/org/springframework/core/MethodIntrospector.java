@@ -65,7 +65,8 @@ public final class MethodIntrospector {
 			handlerTypes.add(specificHandlerType);
 		}
 		handlerTypes.addAll(ClassUtils.getAllInterfacesForClassAsSet(targetType));
-
+		// 传入一个 controller 类的class，循环获取类中的 RequestMapping，并且创建出RequestMappingInfo，加入Map
+		// 通过回调 metadataLookup 的回调函数创建 RequestMappingInfo
 		for (Class<?> currentHandlerType : handlerTypes) {
 			final Class<?> targetClass = (specificHandlerType != null ? specificHandlerType : currentHandlerType);
 

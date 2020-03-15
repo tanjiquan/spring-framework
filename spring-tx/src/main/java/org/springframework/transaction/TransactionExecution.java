@@ -31,6 +31,7 @@ public interface TransactionExecution {
 	 * in an existing transaction, or potentially not running in an actual
 	 * transaction in the first place.
 	 */
+	// 是否是一个新的事务
 	boolean isNewTransaction();
 
 	/**

@@ -91,12 +91,15 @@ public class AnnotationAwareAspectJAutoProxyCreator extends AspectJAwareAdvisorA
 		// Add all the Spring advisors found according to superclass rules.
 		//找出事务相关的advisor（事务在这里很重要）
 		/**
-		 *
+		 * super.findCandidateAdvisors(); 主要用于找事务 Advisor 的，事务的 Advisor 没有缓存
+		 * 没有缓存主要是由于：事务是直接根据类型（Advisor）寻找，很快
 		 */
 		List<Advisor> advisors = super.findCandidateAdvisors();
 		// Build Advisors for all AspectJ aspects in the bean factory.
 		// 找出 Aspect 相关的信息之后，封装为一个 advisor
 		if (this.aspectJAdvisorsBuilder != null) {
+			// this.aspectJAdvisorsBuilder.buildAspectJAdvisors()  用于创建AOP Advisors 并缓存
+			// 不缓存的话，要扫描所有切面类、然后创建解析、然后保存
 			advisors.addAll(this.aspectJAdvisorsBuilder.buildAspectJAdvisors());
 		}
 		// 返回我们所有的通知

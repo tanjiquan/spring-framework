@@ -527,6 +527,9 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		try {
 			// Give BeanPostProcessors a chance to return a proxy instead of the target bean instance.
 			/**
+			 * 这里只是调用bean 的后置处理器（实例化之前或后 的 后置处理器）--如：主要用于找切面信息，但是不会生成代理对象
+			 *  实现了 后置处理接口的类都会被 调用后置处理方法（寻找的逻辑交由 具体的 后置处理器类）
+			 *
 			 * 通过bean 的后置处理器来进行后置处理生成代理对象，一般情况下在此处不会生成代理对象
 			 * 为什么不能生成代理对象呢？不管是我们的jdk 代理还是 cglib 代理都不会在此处代理，
 			 * 因为我们的真实bean 还没生成，所以在这里不会生成代理对象，那么在这里是我们aop 和事务的关键，

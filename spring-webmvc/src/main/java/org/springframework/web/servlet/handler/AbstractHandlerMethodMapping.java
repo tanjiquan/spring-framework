@@ -212,6 +212,7 @@ public abstract class AbstractHandlerMethodMapping<T> extends AbstractHandlerMap
 	 * @see #handlerMethodsInitialized
 	 */
 	protected void initHandlerMethods() {
+		// getCandidateBeanNames() 获取IOC容器中的每一个bean
 		for (String beanName : getCandidateBeanNames()) {
 			if (!beanName.startsWith(SCOPED_TARGET_NAME_PREFIX)) {
 				processCandidateBean(beanName);
@@ -246,15 +247,22 @@ public abstract class AbstractHandlerMethodMapping<T> extends AbstractHandlerMap
 	protected void processCandidateBean(String beanName) {
 		Class<?> beanType = null;
 		try {
+			// 首先会获取当前bean的类型
 			beanType = obtainApplicationContext().getType(beanName);
 		}
 		catch (Throwable ex) {
 			// An unresolvable bean type, probably from a lazy bean - let's ignore it.
+			// 如果获取bean类型失败,说明此bean可能通过懒加载方式生成，直接忽略
 			if (logger.isTraceEnabled()) {
 				logger.trace("Could not resolve type for bean '" + beanName + "'", ex);
 			}
 		}
+		/**
+		 * 如果bean类型获取到了,再接着判断它是否为Handler，即是否含有@controller或@RequestMapping注解,
+		 * 若有,进一步检测,若没有直接搞下一个bean
+		 **/
 		if (beanType != null && isHandler(beanType)) {
+			//创建匹配信息
 			detectHandlerMethods(beanName);
 		}
 	}
@@ -264,15 +272,26 @@ public abstract class AbstractHandlerMethodMapping<T> extends AbstractHandlerMap
 	 * @param handler either a bean name or an actual handler instance
 	 * @see #getMappingForMethod
 	 */
+	/**
+	 * 在一个Handler（即含有特定注解的bean）中寻找HandlerMethod（可能有多个）  一个 controller 类中可能有多个方法
+	 * @param handler bean的名字或者是一个handler实例
+	 **/
 	protected void detectHandlerMethods(Object handler) {
+		//获取 Controller 类的class
 		Class<?> handlerType = (handler instanceof String ?
 				obtainApplicationContext().getType((String) handler) : handler.getClass());
 
 		if (handlerType != null) {
 			Class<?> userType = ClassUtils.getUserClass(handlerType);
+			// 筛选直接获得最终形式的Map（key为method，value为RequestMappingInfo）
 			Map<Method, T> methods = MethodIntrospector.selectMethods(userType,
 					(MethodIntrospector.MetadataLookup<T>) method -> {
 						try {
+							/**
+							 * 调用getMappingForMethod方法用来寻找用
+							 * @RequestMapping 注解标记的类或方法，这里为一抽象
+							 * 方法,具体实现在子类 RequestMappingHandlerMapping 里实现
+							 **/
 							return getMappingForMethod(method, userType);
 						}
 						catch (Throwable ex) {
